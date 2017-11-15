@@ -13,7 +13,7 @@ Installation
 
 ::
 
-    $ pip install txbreeze
+    $ pip install txbreezechms
 
 Getting Started
 ---------------

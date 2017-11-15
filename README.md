@@ -12,7 +12,7 @@ Based on [pyBreezeChMS](https://github.com/alexortizrosado/pyBreezeChMS) by Alex
 ## Getting Started
 
 ```python
-from txbreeze import breeze
+from txbreeze import breezechms
 
 breeze_api = breeze.BreezeApi(
     breeze_url='https://your_subdomain.breezechms.com',
