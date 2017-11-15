@@ -34,3 +34,4 @@ htmlcov
 .mr.developer.cfg
 .project
 .pydevproject
+_trial_temp

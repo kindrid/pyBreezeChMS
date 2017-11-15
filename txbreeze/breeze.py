@@ -18,9 +18,10 @@ Usage:
 __author__ = 'alex@rohichurch.org (Alex Ortiz-Rosado)'
 
 import logging
-import requests
+import treq
+from twisted.internet import defer
 
-from utils import make_enum
+from txbreeze.utils import make_enum
 
 ENDPOINTS = make_enum(
     'BreezeApiURL',
@@ -40,9 +41,7 @@ class BreezeError(Exception):
 class BreezeApi(object):
     """A wrapper for the Breeze REST API."""
 
-    def __init__(self, breeze_url, api_key,
-                 dry_run=False,
-                 connection=requests.Session()):
+    def __init__(self, breeze_url, api_key, dry_run=False, connection=None):
         """Instantiates the BreezeApi with your Breeze account information.
 
         Args:
@@ -57,9 +56,11 @@ class BreezeApi(object):
         self.breeze_url = breeze_url
         self.api_key = api_key
         self.dry_run = dry_run
-        self.connection = connection
+        if connection:
+            self.connection = connection
+        else:
+            self.connection = treq
 
-        # TODO(alex): use urlparse to check url format.
         if not (self.breeze_url and self.breeze_url.startswith('https://') and
                 self.breeze_url.endswith('.breezechms.com')):
             raise BreezeError('You must provide your breeze_url as ',
@@ -68,6 +69,7 @@ class BreezeApi(object):
         if not self.api_key:
             raise BreezeError('You must provide an API key.')
 
+    @defer.inlineCallbacks
     def _request(self, endpoint, params=None, headers=None, timeout=60):
         """Makes an HTTP request to a given url.
 
@@ -88,22 +90,22 @@ class BreezeApi(object):
         if params is None:
             params = {}
         keywords = dict(params=params, headers=headers, timeout=timeout)
-        url = '%s%s' % (self.breeze_url, endpoint)
+        url = '{}{}'.format(self.breeze_url, endpoint)
 
         logging.debug('Making request to %s', url)
         if self.dry_run:
-            return
+            defer.returnValue(None)
 
-        response = self.connection.post(url, **keywords)
+        response = yield self.connection.post(url, **keywords)
         try:
-            response = response.json()
-        except requests.ConnectionError as error:
+            response = yield treq.json_content(response)
+        except Exception as error:
             raise BreezeError(error.message)
-        else:
-            if not self._request_succeeded(response):
-                raise BreezeError(response)
-            logging.debug('JSON Response: %s', response)
-            return response
+
+        if not self._request_succeeded(response):
+            raise BreezeError(response)
+        logging.debug('JSON Response: %s', response)
+        defer.returnValue(response)
 
     def _request_succeeded(self, response):
         """Predicate to ensure that the HTTP request succeeded."""
@@ -124,26 +126,26 @@ class BreezeApi(object):
             "id":"157857",
             "first_name":"Thomas",
             "last_name":"Anderson",
-            "path":"img\/profiles\/generic\/blue.jpg"
+            "path":"img/profiles/generic/blue.jpg"
           },
           {
             "id":"157859",
             "first_name":"Kate",
             "last_name":"Austen",
-            "path":"img\/profiles\/upload\/2498d7f78s.jpg"
+            "path":"img/profiles/upload/2498d7f78s.jpg"
           },
           {
             ...
           }"""
 
-        params = []
+        params = {}
         if limit:
-            params.append('limit=%s' % limit)
+            params["limit"] = limit
         if offset:
-            params.append('offset=%s' % offset)
+            params["offset"] = offset
         if details:
-            params.append('details=1')
-        return self._request('%s/?%s' % (ENDPOINTS.PEOPLE, '&'.join(params)))
+            params["details"] = 1
+        return self._request(ENDPOINTS.PEOPLE, params=params)
 
     def get_profile_fields(self):
         """List profile fields from your database.
@@ -160,7 +162,7 @@ class BreezeApi(object):
 
         Returns:
           JSON response."""
-        return self._request('%s/%s' % (ENDPOINTS.PEOPLE, str(person_id)))
+        return self._request('{}/{}'.format(ENDPOINTS.PEOPLE, str(person_id)))
 
     def get_events(self, start_date=None, end_date=None):
         """Retrieve all events for a given date range.
@@ -171,12 +173,12 @@ class BreezeApi(object):
 
         Returns:
           JSON response."""
-        params = []
+        params = {}
         if start_date:
-            params.append('start=%s' % start_date)
+            params["start"] = start_date
         if end_date:
-            params.append('end=%s' % end_date)
-        return self._request('%s/?%s' % (ENDPOINTS.EVENTS, '&'.join(params)))
+            params["end"] = end_date
+        return self._request(ENDPOINTS.EVENTS, params=params)
 
     def event_check_in(self, person_id, event_instance_id):
         """Checks in a person into an event.
@@ -184,11 +186,13 @@ class BreezeApi(object):
         Args:
           person_id: id for a person in Breeze database.
           event_instance_id: id for event instance to check into.."""
-
-        return self._request(
-            '%s/attendance/add?person_id=%s&instance_id=%s' % (
-                ENDPOINTS.EVENTS, str(person_id), str(event_instance_id)
-            ))
+        params = {
+            "person_id": person_id,
+            "instance_id": event_instance_id,
+            "direction": "in"
+        }
+        endpoint = "{}/attendance/add".format(ENDPOINTS.EVENTS)
+        return self._request(endpoint, params=params)
 
     def event_check_out(self, person_id, event_instance_id):
         """Remove the attendance for a person checked into an event.
@@ -200,11 +204,15 @@ class BreezeApi(object):
         Returns:
           True if check-out succeeds; False if check-out fails."""
 
-        return self._request(
-            '%s/attendance/delete?person_id=%s&instance_id=%s' % (
-                ENDPOINTS.EVENTS, str(person_id), str(event_instance_id)
-            ))
+        params = {
+            "person_id": person_id,
+            "instance_id": event_instance_id,
+            "direction": "out"
+        }
+        endpoint = "{}/attendance/add".format(ENDPOINTS.EVENTS)
+        return self._request(endpoint, params=params)
 
+    @defer.inlineCallbacks
     def add_contribution(self,
                          date=None,
                          name=None,
@@ -269,33 +277,34 @@ class BreezeApi(object):
         Throws:
           BreezeError on failure to add contribution."""
 
-        params = []
+        params = {}
         if date:
-            params.append('date=%s' % date)
+            params["date"] = date
         if name:
-            params.append('name=%s' % name)
+            params["name"] = name
         if person_id:
-            params.append('person_id=%s' % person_id)
+            params["person_id"] = person_id
         if uid:
-            params.append('uid=%s' % uid)
+            params["uid"] = uid
         if processor:
-            params.append('processor=%s' % processor)
+            params["processor"] = processor
         if method:
-            params.append('method=%s' % method)
+            params["method"] = method
         if funds_json:
-            params.append('funds_json=%s' % funds_json)
+            params["funds_json"] = funds_json
         if amount:
-            params.append('amount=%s' % amount)
+            params["amount"] = amount
         if group:
-            params.append('group=%s' % group)
+            params["group"] = group
         if batch_number:
-            params.append('batch_number=%s' % batch_number)
+            params["batch_number"] = batch_number
         if batch_name:
-            params.append('batch_name=%s' % batch_name)
-        response = self._request('%s/add?%s' % (ENDPOINTS.CONTRIBUTIONS,
-                                                '&'.join(params)))
-        return response['payment_id']
+            params["batch_name"] = batch_name
+        endpoint = "{}/add".format(ENDPOINTS.CONTRIBUTIONS)
+        response = yield self._request(endpoint, params=params)
+        defer.returnValue(response['payment_id'])
 
+    @defer.inlineCallbacks
     def edit_contribution(self,
                           payment_id=None,
                           date=None,
@@ -362,35 +371,36 @@ class BreezeApi(object):
         Throws:
           BreezeError on failure to edit contribution."""
 
-        params = []
+        params = {}
         if payment_id:
-            params.append('payment_id=%s' % payment_id)
+            params["payment_id"] = payment_id
         if date:
-            params.append('date=%s' % date)
+            params["date"] = date
         if name:
-            params.append('name=%s' % name)
+            params["name"] = name
         if person_id:
-            params.append('person_id=%s' % person_id)
+            params["person_id"] = person_id
         if uid:
-            params.append('uid=%s' % uid)
+            params["uid"] = uid
         if processor:
-            params.append('processor=%s' % processor)
+            params["processor"] = processor
         if method:
-            params.append('method=%s' % method)
+            params["method"] = method
         if funds_json:
-            params.append('funds_json=%s' % funds_json)
+            params["funds_json"] = funds_json
         if amount:
-            params.append('amount=%s' % amount)
+            params["amount"] = amount
         if group:
-            params.append('group=%s' % group)
+            params["group"] = group
         if batch_number:
-            params.append('batch_number=%s' % batch_number)
+            params["batch_number"] = batch_number
         if batch_name:
-            params.append('batch_name=%s' % batch_name)
-        response = self._request('%s/edit?%s' % (ENDPOINTS.CONTRIBUTIONS,
-                                                 '&'.join(params)))
-        return response['payment_id']
+            params["batch_name"] = batch_name
+        endpoint = "{}/edit".format(ENDPOINTS.CONTRIBUTIONS)
+        response = yield self._request(endpoint, params=params)
+        defer.returnValue(response['payment_id'])
 
+    @defer.inlineCallbacks
     def delete_contribution(self, payment_id):
         """Delete an existing contribution.
 
@@ -402,11 +412,10 @@ class BreezeApi(object):
 
         Throws:
           BreezeError on failure to delete contribution."""
-
-        response = self._request('%s/delete?payment_id=%s' % (
-            ENDPOINTS.CONTRIBUTIONS, payment_id
-        ))
-        return response['payment_id']
+        endpoint = "{}/delete".format(ENDPOINTS.CONTRIBUTIONS)
+        params = {"payment_id": payment_id}
+        response = yield self._request(endpoint, params=params)
+        defer.returnValue(response['payment_id'])
 
     def list_contributions(self,
                            start_date=None,
@@ -444,33 +453,33 @@ class BreezeApi(object):
         Throws:
           BreezeError on malformed request."""
 
-        params = []
+        params = {}
         if start_date:
-            params.append('start=%s' % start_date)
+            params["start"] = start_date
         if end_date:
-            params.append('end=%s' % end_date)
+            params["end"] = end_date
         if person_id:
-            params.append('person_id=%s' % person_id)
+            params["person_id"] = person_id
         if include_family:
             if not person_id:
                 raise BreezeError('include_family requires a person_id.')
-            params.append('include_family=1')
+            params["include_family"] = 1
         if amount_min:
-            params.append('amount_min=%s' % amount_min)
+            params["amount_min"] = amount_min
         if amount_max:
-            params.append('amount_max=%s' % amount_max)
+            params["amount_max"] = amount_max
         if method_ids:
-            params.append('method_ids=%s' % '-'.join(method_ids))
+            params["method_ids"] = "-".join(method_ids)
         if fund_ids:
-            params.append('fund_ids=%s' % '-'.join(fund_ids))
+            params["fund_ids"] = "-".join(fund_ids)
         if envelope_number:
-            params.append('envelope_number=%s' % envelope_number)
+            params["envelope_number"] = envelope_number
         if batches:
-            params.append('batches=%s' % '-'.join(batches))
+            params["batches"] = "-".join(batches)
         if forms:
-            params.append('forms=%s' % '-'.join(forms))
-        return self._request('%s/list?%s' % (ENDPOINTS.CONTRIBUTIONS,
-                                             '&'.join(params)))
+            params["forms"] = "-".join(forms)
+        endpoint = "{}/list".format(ENDPOINTS.CONTRIBUTIONS)
+        return self._request(endpoint, params=params)
 
     def list_funds(self, include_totals=False):
         """List all funds.
@@ -481,18 +490,18 @@ class BreezeApi(object):
         Returns:
           JSON Reponse."""
 
-        params = []
+        params = {}
         if include_totals:
-            params.append('include_totals=1')
-        return self._request('%s/list?%s' %
-                             (ENDPOINTS.FUNDS, '&'.join(params)))
+            params["include_totals"] = 1
+        endpoint = "{}/list".format(ENDPOINTS.FUNDS)
+        return self._request(endpoint, params=params)
 
     def list_campaigns(self):
         """List of campaigns.
 
         Returns:
           JSON response."""
-        return self._request('%s/list_campaigns' % (ENDPOINTS.PLEDGES))
+        return self._request('{}/list_campaigns'.format(ENDPOINTS.PLEDGES))
 
     def list_pledges(self, campaign_id):
         """List of pledges within a campaign.
@@ -502,6 +511,6 @@ class BreezeApi(object):
 
         Returns:
           JSON response."""
-        return self._request('%s/list_pledges?campaign_id=%s' % (
-            ENDPOINTS.PLEDGES, campaign_id
-        ))
+        endpoint = "{}/list_pledges".format(ENDPOINTS.PLEDGES)
+        params = {"campaign_id": campaign_id}
+        return self._request(endpoint, params=params)

@@ -1,40 +1,42 @@
-PyBreezeChMS
-=================
+txBreezeChMS
+============
 
-Python interface to BreezeChMS REST API http://www.breezechms.com
+Twisted Python interface to BreezeChMS REST API
+http://www.breezechms.com
 
-.. image:: https://travis-ci.org/alexortizrosado/pyBreezeChMS.svg?branch=master
-   :target: https://travis-ci.org/alexortizrosado/pyBreezeChMS
-
-.. image:: https://coveralls.io/repos/alexortizrosado/pyBreezeChMS/badge.png
-   :target: https://coveralls.io/r/alexortizrosado/pyBreezeChMS
+Based on
+`pyBreezeChMS <https://github.com/alexortizrosado/pyBreezeChMS>`__ by
+Alex Ortiz-Rosado
 
 Installation
--------------
-Before using pyBreezeChMS, you'll need to install the `requests <http://docs.python-requests.org/en/latest/>`_ library:
+------------
 
-.. code-block:: bash
+::
 
-    $ sudo pip install requests
+    $ pip install txbreeze
 
 Getting Started
 ---------------
 
-.. code-block:: python
+.. code:: python
 
-    from breeze import breeze
+    from txbreeze import breeze
+
     breeze_api = breeze.BreezeApi(
         breeze_url='https://your_subdomain.breezechms.com',
-        apk_key='YourApiKey')
-
+        api_key='YourApiKey')
 
 To get a JSON of all people:
 
-.. code-block:: python
+.. code:: python
+
 
     people = breeze_api.get_people()
+    # people is a Deferred instance
 
 License
 -------
 
-Code released under the `Apache 2.0 <https://github.com/aortiz32/pyBreezeChMS/blob/master/LICENSE>`_ license.
+Code released under the `Apache
+2.0 <https://github.com/aortiz32/pyBreezeChMS/blob/master/LICENSE>`__
+license.
