@@ -7,12 +7,12 @@ Based on [pyBreezeChMS](https://github.com/alexortizrosado/pyBreezeChMS) by Alex
 
 ## Installation
 
-    $ pip install txbreeze
+    $ pip install txbreezechms
 
 ## Getting Started
 
 ```python
-from txbreeze import breezechms
+from txbreeze import breeze
 
 breeze_api = breeze.BreezeApi(
     breeze_url='https://your_subdomain.breezechms.com',
