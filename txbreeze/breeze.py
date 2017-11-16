@@ -17,7 +17,6 @@ Usage:
 
 __author__ = 'alex@rohichurch.org (Alex Ortiz-Rosado)'
 
-import logging
 import treq
 from twisted.internet import defer
 
@@ -91,25 +90,22 @@ class BreezeApi(object):
             params = {}
         keywords = dict(params=params, headers=headers, timeout=timeout)
         url = '{}{}'.format(self.breeze_url, endpoint)
-
-        logging.debug('Making request to %s', url)
         if self.dry_run:
             defer.returnValue(None)
 
-        response = yield self.connection.post(url, **keywords)
+        raw_response = yield self.connection.post(url, **keywords)
         try:
-            response = yield treq.json_content(response)
+            response = yield treq.json_content(raw_response)
         except Exception as error:
             raise BreezeError(error.message)
 
         if not self._request_succeeded(response):
             raise BreezeError(response)
-        logging.debug('JSON Response: %s', response)
         defer.returnValue(response)
 
     def _request_succeeded(self, response):
         """Predicate to ensure that the HTTP request succeeded."""
-        return not (('error' in response) or ('errorCode' in response))
+        return not (('errors' in response) or ('errorCode' in response))
 
     def get_people(self, limit=None, offset=None, details=False):
         """List people from your database.
