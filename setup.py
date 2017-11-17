@@ -12,7 +12,7 @@ with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as readme:
 
 setup(
     name='txBreezeChMS',
-    version='1.0.1',
+    version='1.0.2',
     description="Twisted Python interface to BreezeChMS REST API.",
     long_description=long_description,
     classifiers=[

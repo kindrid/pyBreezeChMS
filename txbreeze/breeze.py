@@ -17,6 +17,9 @@ Usage:
 
 __author__ = 'alex@rohichurch.org (Alex Ortiz-Rosado)'
 
+import json
+from datetime import datetime
+
 import treq
 from twisted.internet import defer
 
@@ -171,8 +174,12 @@ class BreezeApi(object):
           JSON response."""
         params = {}
         if start_date:
+            if isinstance(start_date, datetime):
+                start_date = "{:%d-%m-%Y}".format(start_date)
             params["start"] = start_date
         if end_date:
+            if isinstance(end_date, datetime):
+                end_date = "{:%d-%m-%Y}".format(end_date)
             params["end"] = end_date
         return self._request(ENDPOINTS.EVENTS, params=params)
 
@@ -217,6 +224,7 @@ class BreezeApi(object):
                          processor=None,
                          method=None,
                          funds_json=None,
+                         person_json=None,
                          amount=None,
                          group=None,
                          batch_number=None,
@@ -275,6 +283,8 @@ class BreezeApi(object):
 
         params = {}
         if date:
+            if isinstance(date, datetime):
+                date = "{:%d-%m-%Y}".format(date)
             params["date"] = date
         if name:
             params["name"] = name
@@ -287,7 +297,12 @@ class BreezeApi(object):
         if method:
             params["method"] = method
         if funds_json:
-            params["funds_json"] = funds_json
+            if not isinstance(funds_json, basestring):
+                funds_json = json.dumps(funds_json)
+        if person_json:
+            if not isinstance(person_json, basestring):
+                person_json = json.dumps(person_json)
+            params["person_json"] = person_json
         if amount:
             params["amount"] = amount
         if group:
@@ -371,6 +386,8 @@ class BreezeApi(object):
         if payment_id:
             params["payment_id"] = payment_id
         if date:
+            if isinstance(date, datetime):
+                date = "{:%d-%m-%Y}".format(date)
             params["date"] = date
         if name:
             params["name"] = name
@@ -451,8 +468,12 @@ class BreezeApi(object):
 
         params = {}
         if start_date:
+            if isinstance(start_date, datetime):
+                start_date = "{:%d-%m-%Y}".format(start_date)
             params["start"] = start_date
         if end_date:
+            if isinstance(end_date, datetime):
+                end_date = "{:%d-%m-%Y}".format(end_date)
             params["end"] = end_date
         if person_id:
             params["person_id"] = person_id
