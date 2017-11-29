@@ -299,6 +299,7 @@ class BreezeApi(object):
         if funds_json:
             if not isinstance(funds_json, basestring):
                 funds_json = json.dumps(funds_json)
+            params["funds_json"] = funds_json
         if person_json:
             if not isinstance(person_json, basestring):
                 person_json = json.dumps(person_json)
