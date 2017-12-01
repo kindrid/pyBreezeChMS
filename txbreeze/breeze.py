@@ -65,7 +65,7 @@ class BreezeApi(object):
 
         if not (self.breeze_url and self.breeze_url.startswith('https://') and
                 self.breeze_url.endswith('.breezechms.com')):
-            raise BreezeError('You must provide your breeze_url as ',
+            raise BreezeError('You must provide your breeze_url as '
                               'subdomain.breezechms.com')
 
         if not self.api_key:
@@ -108,6 +108,8 @@ class BreezeApi(object):
 
     def _request_succeeded(self, response):
         """Predicate to ensure that the HTTP request succeeded."""
+        if not isinstance(response, dict):
+            return True
         if "success" in response:
             return response["success"]
         return not response.get("errors")
